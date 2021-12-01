@@ -21,29 +21,36 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
         """
         xをheadの数に分割し、後の積のため転置する
 
-        x = embed_vec * weight
-        input : (batch_size, max_length, weight_dim)
-        return : (batch_size, num_heads, max_length, weight_dim/num_heads)
+        input:
+            x : (batch_size, max_length, weight_dim)
+        return: 
+            x : (batch_size, num_heads, max_length, weight_dim/num_heads)
+
         """
         x = tf.reshape(x, [x.shape[0], x.shape[1], self.num_heads, -1])
         x = tf.transpose(x, perm=[0,2,1,3])
         return x
 
 
-    def create_mask_for_pad(self, attention_mask):
+    def create_mask_for_pad(self, attention_mask1, attention_mask2):
         """
         paddingの位置を無視する為のmaskを作る
 
-        #1 　(batch_size, max_length, max_length)のmaskを作り
+        argment: 
+            attention_mask1 : (batch_size, max_length1)  padの位置 = 0
+            attention_mask2 : (batch_size, max_length2)  padの位置 = 0
+
+        return:
+            (batch_size, num_heads, max_length1, max_length2)  padの位置 = True
+
+        #1 　(batch_size, max_length1, max_length2)のmaskを作り
         #2 　headの数だけrepeatし
         #3 　0,1を反転させる
-
-        attention_mask : (batch_size, max_length)　padの位置 = 0
-        return : (batch_size, num_heads, max_length, max_length) padの位置 = True
         """
-        at_mask = np.array([m.reshape(-1, 1) * m for m in attention_mask])  #1
-        at_mask = np.repeat(at_mask[:,None,:,:], self.num_heads, axis=1)  #2
-        p_mask = 1 - at_mask  #3
+        p_mask = np.array([m1.reshape(-1, 1) * m2 for m1, m2 in zip(attention_mask1, 
+                                                                    attention_mask2)])  #1
+        p_mask = np.repeat(p_mask[:,None,:,:], self.num_heads, axis=1)  #2
+        p_mask = 1 - p_mask  #3
         return tf.cast(p_mask, tf.bool)
 
 
@@ -68,7 +75,7 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
         k = self.split_transpose(k)
         v = self.split_transpose(v)
 
-        p_mask = self.create_mask_for_pad(attention_mask)
+        p_mask = self.create_mask_for_pad(attention_mask, attention_mask)
         mask = tf.cast(p_mask, tf.float32)
 
         logit = tf.matmul(q, k, transpose_b=True)
@@ -90,7 +97,6 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
 class DecoderSelfAttention(EncoderSelfAttention):
     """
     decoder側のself attention
-    未来時刻に対するマスク適用する点が、encoder側のself attentionと異なる
     """
     
     def __init__(self, weight_dim, num_heads, **kwargs):
@@ -118,10 +124,10 @@ class DecoderSelfAttention(EncoderSelfAttention):
         
         
     def call(self, input, attention_mask):
+        q = tf.matmul(input, self.wq)
         k = tf.matmul(input, self.wk)
         v = tf.matmul(input, self.wv)
-        q = tf.matmul(input, self.wq)
-
+        
         q = self.split_transpose(q)
         k = self.split_transpose(k)
         v = self.split_transpose(v)
@@ -129,7 +135,7 @@ class DecoderSelfAttention(EncoderSelfAttention):
         logit = tf.matmul(q, k, transpose_b=True)
 
         f_mask = self.create_mask_for_future_input(logit) # create future mask
-        p_mask = self.create_mask_for_pad(attention_mask)
+        p_mask = self.create_mask_for_pad(attention_mask, attention_mask)
         mask = tf.cast(tf.logical_or(f_mask, p_mask), tf.float32)
         
         logit += logit.dtype.min * mask  # set future or pad position to "-inf"
@@ -157,8 +163,13 @@ class EncoderDecoderAttention(EncoderSelfAttention):
         super().__init__(weight_dim, num_heads, **kwargs)
         
 
-    def call(self, input, attention_mask, encoder_output):
-        q = tf.matmul(input, self.wq)
+    def call(self, 
+             decoder_input, 
+             decoder_attention_mask, 
+             encoder_output, 
+             encoder_attention_mask):
+        
+        q = tf.matmul(decoder_input, self.wq)
         k = tf.matmul(encoder_output, self.wk)
         v = tf.matmul(encoder_output, self.wv)
 
@@ -166,7 +177,7 @@ class EncoderDecoderAttention(EncoderSelfAttention):
         k = self.split_transpose(k)
         v = self.split_transpose(v)
 
-        p_mask = self.create_mask_for_pad(attention_mask)
+        p_mask = self.create_mask_for_pad(decoder_attention_mask, encoder_attention_mask)
         mask = tf.cast(p_mask, tf.float32)
 
         logit = tf.matmul(q, k, transpose_b=True)
@@ -179,7 +190,7 @@ class EncoderDecoderAttention(EncoderSelfAttention):
         multi_context_vec = tf.transpose(multi_context_vec, perm=[0,2,1,3])
         concat_vec = tf.reshape(
             multi_context_vec, 
-            shape=[input.shape[0], input.shape[1], self.weight_dim]
+            shape=[decoder_input.shape[0], decoder_input.shape[1], self.weight_dim]
             )
         encoded_vec = tf.matmul(concat_vec, self.wo)
         return encoded_vec
@@ -187,7 +198,7 @@ class EncoderDecoderAttention(EncoderSelfAttention):
 
 class LayerNormalizer(tf.keras.layers.Layer):
     """
-    layer毎に正規化を行う
+    文単位で正規化を行う
     """
 
     def __init__(self, **kwargs):

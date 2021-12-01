@@ -83,11 +83,18 @@ class Decoder(tf.keras.models.Model):
         self.layer_norm3 = LayerNormalizer()
 
 
-    def call(self, input, attention_mask, encoder_output):
-        out1 = self.self_attention(input, attention_mask)
-        out1 = self.layer_norm1(input + out1)
+    def call(self, 
+             decoder_input, 
+             decoder_attention_mask, 
+             encoder_output,
+             encoder_attention_mask
+             ):
         
-        out2 = self.ed_attention(out1, attention_mask, encoder_output)
+        out1 = self.self_attention(decoder_input, decoder_attention_mask)
+        out1 = self.layer_norm1(decoder_input + out1)
+        
+        out2 = self.ed_attention(
+            out1, decoder_attention_mask, encoder_output, encoder_attention_mask)
         out2 = self.layer_norm2(out1 + out2)
 
         out3 = self.ffn(out2)
@@ -103,7 +110,8 @@ class Transformer(tf.keras.models.Model):
                  hidden_dim=256,
                  at_weight_dim=512, 
                  num_heads=8,
-                 dropout_rate=0.2,
+                 dropout_rate=0.2, 
+                 training=False,
                  num_encoders=8,
                  num_decoders=8,
                  **kwargs
@@ -123,7 +131,9 @@ class Transformer(tf.keras.models.Model):
             encoder_num_vocabs, hidden_dim)
         self.decoder_embedding_layer = tf.keras.layers.Embedding(
             decoder_num_vocabs, hidden_dim)
-        self.pe_layer = PositionalEncoder()
+        self.encoder_pe_layer = PositionalEncoder()
+        self.decoder_pe_layer = PositionalEncoder()
+
         
         self.encoders_list = []
         self.decoders_list = []
@@ -135,6 +145,7 @@ class Transformer(tf.keras.models.Model):
                         ffn_weight_dim=hidden_dim,
                         dropout_rate=dropout_rate)
                 )
+            
         for _ in range(self.num_decoders):
             self.decoders_list.append(
                 Decoder(at_weight_dim=at_weight_dim,
@@ -154,19 +165,18 @@ class Transformer(tf.keras.models.Model):
              decoder_attention_mask
              ):
         encoder_vec = self.encoder_embedding_layer(encoder_input_ids)
-        encoder_vec = self.pe_layer(encoder_vec)
+        encoder_vec = self.encoder_pe_layer(encoder_vec)
 
         for encoder in self.encoders_list:
             encoder_vec = encoder(encoder_vec, encoder_attention_mask)
 
         decoder_vec = self.decoder_embedding_layer(decoder_input_ids)
-        decoder_vec = self.pe_layer(decoder_vec)
+        decoder_vec = self.decoder_pe_layer(decoder_vec)
 
         for decoder in self.decoders_list:
             decoder_vec = decoder(
-                decoder_vec, decoder_attention_mask, encoder_vec)
+                decoder_vec, decoder_attention_mask, encoder_vec, encoder_attention_mask)
         
         vocab_prob = self.vocab_prob_layer(decoder_vec)
         
         return {"vocab_prob": vocab_prob, "last_hidden_state": decoder_vec}
-    
