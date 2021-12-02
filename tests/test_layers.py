@@ -2,7 +2,6 @@ import unittest
 
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras.backend as K
 
 from layers import (
     EncoderSelfAttention, 
@@ -29,7 +28,7 @@ class TestEncoderSelfAttention(unittest.TestCase):
     
 
     def test_create_mask_for_pad(self):
-        mask_for_pad = self.layer.create_mask_for_pad(self.attention_mask)
+        mask_for_pad = self.layer.create_mask_for_pad(self.attention_mask, self.attention_mask)
         self.assertEqual(mask_for_pad.shape, [2,4,15,15])
         self.assertEqual(mask_for_pad.numpy()[0][0].sum(), 15 * 15 - 10 * 10)
     
@@ -66,14 +65,16 @@ class TestEncoderDecoderAttention(unittest.TestCase):
     def setUpClass(cls):
         cls.layer = EncoderDecoderAttention(weight_dim=128, num_heads=4)
 
-        cls.enc_output = tf.constant(np.random.rand(2, 15, 256), dtype=tf.float32)
+        cls.enc_output = tf.constant(np.random.rand(2, 20, 256), dtype=tf.float32)
         cls.dec_input = tf.constant(np.random.rand(2, 15, 256), dtype=tf.float32)
-        cls.attention_mask = np.zeros([2, 15], dtype=np.float32)
-        cls.attention_mask[:,:10] = 1
+        cls.enc_mask = np.zeros([2, 20], dtype=np.float32)
+        cls.enc_mask[:,:12] = 1
+        cls.dec_mask = np.zeros([2, 15], dtype=np.float32)
+        cls.dec_mask[:,:10] = 1
 
 
     def test_call(self):
-        self.assertEqual(self.layer(self.dec_input, self.attention_mask, self.enc_output).shape, [2,15,256])
+        self.assertEqual(self.layer(self.dec_input, self.dec_mask, self.enc_output, self.enc_mask).shape, [2,15,256])
 
 
 class TestLayerNormalizer(unittest.TestCase):

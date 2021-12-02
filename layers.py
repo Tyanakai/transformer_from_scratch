@@ -1,5 +1,5 @@
 """
-transformerのencoder, decoderを構成するsublayer
+transformerのencoderとdecoderを構成するsublayer
 """
 
 import numpy as np
@@ -9,6 +9,10 @@ import tensorflow.keras.backend as K
 class EncoderSelfAttention(tf.keras.layers.Layer):
     """
     encoder側のself attention
+
+    Attributes:
+        weight_dim: 入力に積算する重みの次元 (int)
+        num_heads: multi head attentionのhead数 (int)
     """
     
     def __init__(self, weight_dim, num_heads, **kwargs):
@@ -21,11 +25,11 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
         """
         xをheadの数に分割し、後の積のため転置する
 
-        input:
-            x : (batch_size, max_length, weight_dim)
-        return: 
-            x : (batch_size, num_heads, max_length, weight_dim/num_heads)
+        Args:  
+            x: tensor (batch_size, max_length, weight_dim)
 
+        Returns: 
+            x: tensor (batch_size, num_heads, max_length, weight_dim/num_heads)
         """
         x = tf.reshape(x, [x.shape[0], x.shape[1], self.num_heads, -1])
         x = tf.transpose(x, perm=[0,2,1,3])
@@ -36,16 +40,17 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
         """
         paddingの位置を無視する為のmaskを作る
 
-        argment: 
-            attention_mask1 : (batch_size, max_length1)  padの位置 = 0
-            attention_mask2 : (batch_size, max_length2)  padの位置 = 0
+        Args: 
+            attention_mask1: np.array (batch_size, max_length1)  padの位置 = 0
+            attention_mask2: np.array (batch_size, max_length2)  padの位置 = 0
 
-        return:
+        Returns:
             (batch_size, num_heads, max_length1, max_length2)  padの位置 = True
 
-        #1 　(batch_size, max_length1, max_length2)のmaskを作り
-        #2 　headの数だけrepeatし
-        #3 　0,1を反転させる
+        Note:
+            #1 　(batch_size, max_length1, max_length2)のmaskを作り
+            #2 　headの数だけrepeatし
+            #3 　0,1を反転させる
         """
         p_mask = np.array([m1.reshape(-1, 1) * m2 for m1, m2 in zip(attention_mask1, 
                                                                     attention_mask2)])  #1
@@ -67,6 +72,14 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
         
         
     def call(self, input, attention_mask):
+        """
+        Args:
+            input: tensor (batch_size, max_length, hidden_dim)
+            attention_mask: np.array (batch_size, max_length) padの位置 = 0
+        
+        Returns:
+            tensor (batch_size, max_length, hidden_dim)
+        """
         q = tf.matmul(input, self.wq)
         k = tf.matmul(input, self.wk)
         v = tf.matmul(input, self.wv)
@@ -97,6 +110,10 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
 class DecoderSelfAttention(EncoderSelfAttention):
     """
     decoder側のself attention
+
+    Attributes:
+        weight_dim: 入力に積算する重みの次元 (int)
+        num_heads: multi head attentionのhead数 (int)
     """
     
     def __init__(self, weight_dim, num_heads, **kwargs):
@@ -107,13 +124,18 @@ class DecoderSelfAttention(EncoderSelfAttention):
         """
         自身より未来のinputを参照しない為のmaskを作る
 
-        input: (batch_size, num_heads, max_length, max_length)
-        右上三角行列 - 対角行列　＝　未来時刻の値が1のマスク行列 (f-mask)
-        [[0, 1, 1, 1]
-         [0, 0, 1, 1]
-         [0, 0, 0, 1] 
-         [0, 0, 0, 0]]
+        Args:
+            input: tensor (batch_size, num_heads, max_length, max_length)
 
+        Returns:
+            tensor (batch_size, num_heads, max_length, max_length) maskの位置 = True
+
+        Notes:
+            右上三角行列 - 対角行列　＝　未来時刻の値が1のマスク行列 (f-mask)
+            [[0, 1, 1, 1]
+            [0, 0, 1, 1]
+            [0, 0, 0, 1] 
+            [0, 0, 0, 0]]
         """
         ones = np.ones(input.shape)
 
@@ -124,6 +146,17 @@ class DecoderSelfAttention(EncoderSelfAttention):
         
         
     def call(self, input, attention_mask):
+        """
+        Args:
+            input: tensor (batch_size, max_length, hidden_dim)
+            attention_mask: np.array (batch_size, max_length) padの位置 = 0
+        
+        Returns:
+            tensor (batch_size, max_length, hidden_dim)
+
+        Notes:
+            future maskを適用する点でEncoderSelfAttentionのcallと異なる
+        """
         q = tf.matmul(input, self.wq)
         k = tf.matmul(input, self.wk)
         v = tf.matmul(input, self.wv)
@@ -157,6 +190,10 @@ class EncoderDecoderAttention(EncoderSelfAttention):
     """
     decoder側のlayer
     decoder側のself attentionの出力と共に、encoder側の出力も参照する
+
+    Attributes:
+        weight_dim: 入力に積算する重みの次元 (int)
+        num_heads: multi head attentionのhead数 (int)
     """
 
     def __init__(self, weight_dim, num_heads, **kwargs):
@@ -168,6 +205,16 @@ class EncoderDecoderAttention(EncoderSelfAttention):
              decoder_attention_mask, 
              encoder_output, 
              encoder_attention_mask):
+        """
+        Args:
+            decoder_input: tensor (batch_size, decoder_max_length, hidden_dim)
+            decoder_attention_mask: np.array (batch_size, decoder_max_length) padの位置 = 0
+            encoder_output: tensor (batch_size, encoder_max_length, hidden_dim)
+            encoder_attention_mask: np.array (batch_size, decoder_max_length) padの位置 = 0
+
+        Returns:
+            tensor (batch_size, decoder_max_length, hidden_dim)
+        """
         
         q = tf.matmul(decoder_input, self.wq)
         k = tf.matmul(encoder_output, self.wk)
@@ -214,6 +261,13 @@ class LayerNormalizer(tf.keras.layers.Layer):
 
 
     def call(self, input):
+        """
+        Args:
+            input: tensor (batch_size, max_length, hidden_dim)
+        
+        Returns:
+            tensor (batch_size, max_length, hidden_dim)
+        """
         mean = tf.math.reduce_mean(input, axis=[1,2])[:, tf.newaxis, tf.newaxis]
         std = tf.math.reduce_std(input, axis=[1,2])[:, tf.newaxis, tf.newaxis]
         normalized = (input - mean) / (std + K.epsilon())
@@ -224,6 +278,10 @@ class LayerNormalizer(tf.keras.layers.Layer):
 class FeedForwardNeuralBlock(tf.keras.Model):
     """
     encoder, decoder両方で使用する全結合layer
+
+    Attributes:
+        hidden_dim: 全結合層の重みの次元
+        dropout_rate: dropout層のパラメータ
     """
 
     def __init__(self, hidden_dim, dropout_rate, **kwargs):
@@ -239,6 +297,12 @@ class FeedForwardNeuralBlock(tf.keras.Model):
         
       
     def call(self, input):
+        """
+        Args:
+            input: tensor (batch_size, max_length, hidden_dim)
+        Returns
+            tensor (batch_size, max_length, hidden_dim)
+        """
         x = self.filter_layer(input)
         x = self.dropout(x)
         output = self.output_layer(x)
@@ -254,20 +318,25 @@ class PositionalEncoder(tf.keras.layers.Layer):
         super().__init__(**kwargs)
 
     
-    def positional_vec(self, pos, embd_d):
+    def positional_vec(self, pos, embd_dim):
         """
         位置ベクトルを計算する
         
-        pos : 文におけるtokenの位置
-        embd_d : tokenベクトルの次元
+        Args:
+            pos: 文におけるtokenの位置
+            embd_dim: tokenベクトルの次元
+
+        Returns:
+            pos_v: np.array (None, pos, embd_dim)
+                   ブロードキャストの為batch_sizeの次元を先頭に追加する
         """
-        pos_v = np.zeros(shape=[pos, embd_d])
+        pos_v = np.zeros(shape=[pos, embd_dim])
         for p in range(pos):
-            for i in range(embd_d):
+            for i in range(embd_dim):
                 if i % 2 == 0:
-                    pos_v[p,i] = np.sin(p / np.power(10000, (i / embd_d)))
+                    pos_v[p,i] = np.sin(p / np.power(10000, (i / embd_dim)))
                 else:
-                    pos_v[p,i] = np.cos(p / np.power(10000, ((i - 1) / embd_d)))
+                    pos_v[p,i] = np.cos(p / np.power(10000, ((i - 1) / embd_dim)))
         return pos_v[None,...]
 
 
@@ -278,6 +347,13 @@ class PositionalEncoder(tf.keras.layers.Layer):
         
 
     def call(self, input):
+        """
+        Args:
+            input: embeddingされた文章のtensor (batch_size, max_length, hidden_dim)
+
+        Returns:
+            inputに位置ベクトルを加算したtensor (batch_size, max_length, hidden_dim)
+        """
         return tf.add(input, self.pos_vec)
 
 

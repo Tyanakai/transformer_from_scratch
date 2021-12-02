@@ -16,8 +16,13 @@ from layers import (
 
 class Encoder(tf.keras.models.Model):
     """
-    input : (batch_size, max_length, embed_dim)
-    attention_mask : (batch_size, max_length)
+    一層のEncoder
+
+    Attributes:
+        at_weight_dim: attention機構で使用する重みの次元 
+        num_heads: multi head attentionのhead数
+        ffn_weight_dim: 全結合層の重みの次元。embeddingの次元に一致させる
+        dropout_rate: dropout層のパラメータ
     """ 
 
     def __init__(
@@ -42,7 +47,15 @@ class Encoder(tf.keras.models.Model):
         self.ffn = FeedForwardNeuralBlock(self.ffn_weight_dim, self.dropout_rate)
 
         
-    def call(self, input, attention_mask):    
+    def call(self, input, attention_mask):
+        """
+        Args:
+            input: tensor (batch_size, max_length, hidden_dim)
+            attention_mask: np.array (batch_size, max_length)
+
+        Returns:
+            tensor (batch_size, max_length, hidden_dim)
+        """    
         out1 = self.self_attention(input, attention_mask)
         out1 = self.layer_norm1(input + out1)
 
@@ -53,9 +66,13 @@ class Encoder(tf.keras.models.Model):
 
 class Decoder(tf.keras.models.Model):
     """
-    input : (batch_size, max_length, embed_dim)
-    attention_mask : (batch_size, max_length)
-    encoder_output : (batch_size, mas_length, embed_dim)
+    一層のDecoder
+
+    Attributes:
+        at_weight_dim: attention機構で使用する重みの次元 
+        num_heads: multi head attentionのhead数
+        ffn_weight_dim: 全結合層の重みの次元。embeddingの次元に一致させる
+        dropout_rate: dropout層のパラメータ
     """
 
     def __init__(
@@ -89,6 +106,16 @@ class Decoder(tf.keras.models.Model):
              encoder_output,
              encoder_attention_mask
              ):
+        """
+        Args:
+            decoder_input: decoder側の入力tensor (batch_size, decoder_max_length, hidden_dim)
+            decoder_attention_mask: np.array (batch_size, decoder_max_length)
+            encoder_output: encoder側の最終出力tensor (batch_size, encoder_max_length, hidden_dim)
+            encoder_attention_mask: np.array (batch_size, encoder_max_length)
+        
+        Returns:
+            tensor (batch_size, decoder_max_length, hidden_dim)
+        """
         
         out1 = self.self_attention(decoder_input, decoder_attention_mask)
         out1 = self.layer_norm1(decoder_input + out1)
@@ -103,6 +130,17 @@ class Decoder(tf.keras.models.Model):
 
 
 class Transformer(tf.keras.models.Model):
+    """
+    Attributes:
+        encoder_num_vocabs: encoder側の語彙数
+        decoder_num_vocabs: decoder側の語彙数
+        hidden_dim: embeddingベクトル及びEncoder,Decoder層の出力ベクトルの次元
+        at_weight_dim: attention機構で用いる重みの次元
+        num_heads: multi head attentionのhead数
+        dropout_rate: dropout層のパラメータ
+        num_encoders: Encoder層を積み上げる個数
+        num_decoders: Decoder層を積み上げる個数
+    """
 
     def __init__(self,
                  encoder_num_vocabs,
@@ -111,7 +149,6 @@ class Transformer(tf.keras.models.Model):
                  at_weight_dim=512, 
                  num_heads=8,
                  dropout_rate=0.2, 
-                 training=False,
                  num_encoders=8,
                  num_decoders=8,
                  **kwargs
@@ -164,6 +201,16 @@ class Transformer(tf.keras.models.Model):
              decoder_input_ids,
              decoder_attention_mask
              ):
+        """
+        Args:
+            encoder_input_ids: encoder側の入力token id np.array (batch_size, encoder_max_length)
+            encoder_attention_mask: np.array (batch_size, encoder_max_length)
+            decoder_input: decoder側の入力token id np.array (batch_size, decoder_max_length)
+            decoder_attention_mask: np.array (batch_size, decoder_max_length)
+        
+        Returns:
+            tensor (batch_size, decoder_max_length, hidden_dim)       
+        """
         encoder_vec = self.encoder_embedding_layer(encoder_input_ids)
         encoder_vec = self.encoder_pe_layer(encoder_vec)
 
