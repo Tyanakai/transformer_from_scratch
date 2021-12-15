@@ -14,10 +14,10 @@ from layers import (
     PositionalEncoder
 )
 
+
 class Encoder(tf.keras.models.Model):
     """
     一層のEncoder
-
     Attributes:
         at_weight_dim: attention機構で使用する重みの次元 
         num_heads: multi head attentionのhead数
@@ -51,8 +51,7 @@ class Encoder(tf.keras.models.Model):
         """
         Args:
             input: tensor (batch_size, max_length, hidden_dim)
-            attention_mask: np.array (batch_size, max_length)
-
+            attention_mask: tensor (batch_size, max_length)
         Returns:
             tensor (batch_size, max_length, hidden_dim)
         """    
@@ -67,7 +66,6 @@ class Encoder(tf.keras.models.Model):
 class Decoder(tf.keras.models.Model):
     """
     一層のDecoder
-
     Attributes:
         at_weight_dim: attention機構で使用する重みの次元 
         num_heads: multi head attentionのhead数
@@ -109,9 +107,9 @@ class Decoder(tf.keras.models.Model):
         """
         Args:
             decoder_input: decoder側の入力tensor (batch_size, decoder_max_length, hidden_dim)
-            decoder_attention_mask: np.array (batch_size, decoder_max_length)
+            decoder_attention_mask: tensor (batch_size, decoder_max_length)
             encoder_output: encoder側の最終出力tensor (batch_size, encoder_max_length, hidden_dim)
-            encoder_attention_mask: np.array (batch_size, encoder_max_length)
+            encoder_attention_mask: tensor (batch_size, encoder_max_length)
         
         Returns:
             tensor (batch_size, decoder_max_length, hidden_dim)
@@ -203,10 +201,10 @@ class Transformer(tf.keras.models.Model):
              ):
         """
         Args:
-            encoder_input_ids: encoder側の入力token id np.array (batch_size, encoder_max_length)
-            encoder_attention_mask: np.array (batch_size, encoder_max_length)
-            decoder_input: decoder側の入力token id np.array (batch_size, decoder_max_length)
-            decoder_attention_mask: np.array (batch_size, decoder_max_length)
+            encoder_input_ids: encoder側の入力token id tensor (batch_size, encoder_max_length)
+            encoder_attention_mask: tensor (batch_size, encoder_max_length)
+            decoder_input: decoder側の入力token id tensor (batch_size, decoder_max_length)
+            decoder_attention_mask: tensor (batch_size, decoder_max_length)
         
         Returns:
             tensor (batch_size, decoder_max_length, hidden_dim)       
