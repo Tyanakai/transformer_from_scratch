@@ -8,3 +8,6 @@ TensorFlowを用いて、Transformerをスクラッチ実装しました。<br>
 [TensorFlowの公式ドキュメント](https://www.tensorflow.org/tutorials/text/transformer)や
 [こちらの実装](https://qiita.com/halhorn/items/c91497522be27bde17ce)を参考にさせて頂きました。
 
+## 訓練
+実装されたTransformerは[train.ipynb](https://github.com/Tyanakai/transformer_from_scratch/blob/main/train.ipynb)で訓練できます。<br>
+デモ訓練データとして[こちらの日付変換データ](https://github.com/oreilly-japan/deep-learning-from-scratch-2/blob/master/dataset/date.txt)をお借りしました。
