@@ -12,7 +12,7 @@ from layers import (
     LayerNormalizer,
     FeedForwardNeuralBlock,
     PositionalEncoder
-)
+    )
 
 
 class Encoder(tf.keras.models.Model):

@@ -44,9 +44,9 @@ class EncoderSelfAttention(tf.keras.layers.Layer):
         Returns:
             (batch_size, num_heads, max_length1, max_length2)  padの位置 = True
         Note:
-            #1 　(batch_size, max_length1, max_length2)のmaskを作り
-            #2 　headの数だけrepeatし
-            #3 　0,1を反転させる
+            #1 (batch_size, max_length1, max_length2)のmaskを作り
+            #2  headの数だけrepeatし
+            #3  0,1を反転させる
         """
         # mask1: (batch_size, max_length1, 1)
         # mask2: (batch_size, 1, max_length2) に変形する
@@ -128,7 +128,7 @@ class DecoderSelfAttention(EncoderSelfAttention):
         Returns:
             tensor (batch_size, num_heads, max_length, max_length) maskの位置 = True
         Notes:
-            右上三角行列 - 対角行列　＝　未来時刻の値が1のマスク行列 (f-mask)
+            右上三角行列 - 対角行列 = 未来時刻の値が1のマスク行列 (f-mask)
             [[0, 1, 1, 1]
             [0, 0, 1, 1]
             [0, 0, 0, 1] 
@@ -206,7 +206,7 @@ class EncoderDecoderAttention(EncoderSelfAttention):
             decoder_input: tensor (batch_size, decoder_max_length, hidden_dim)
             decoder_attention_mask: tensor (batch_size, decoder_max_length) padの位置 = 0
             encoder_output: tensor (batch_size, encoder_max_length, hidden_dim)
-            encoder_attention_mask: tensor (batch_size, decoder_max_length) padの位置 = 0
+            encoder_attention_mask: tensor (batch_size, encoder_max_length) padの位置 = 0
         Returns:
             tensor (batch_size, decoder_max_length, hidden_dim)
         """
@@ -321,8 +321,8 @@ class PositionalEncoder(tf.keras.layers.Layer):
             pos: 文におけるtokenの位置
             embd_dim: tokenベクトルの次元
         Returns:
-            pos_v: np.array (None, pos, embd_dim)
-                   ブロードキャストの為batch_sizeの次元を先頭に追加する
+            pos_v: np.array (None, pos, embd_dim)    
+            ブロードキャストの為batch_sizeの次元を先頭に追加する
         """
         pos_v = np.zeros(shape=[pos, embd_dim])
         for p in range(pos):
